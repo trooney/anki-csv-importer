@@ -5,7 +5,7 @@ import csv
 import requests
 import os
 
-ANKI_CONNECT_URL = "http://localhost:8765"
+ANKI_CONNECT_URL = os.getenv("ANKI_CONNECT_URL", "http://localhost:8765")
 
 
 class AnkiException(Exception):
