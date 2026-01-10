@@ -2,10 +2,13 @@
 
 import argparse
 import csv
-import requests
 import os
+import sys
+
+import requests
 
 ANKI_CONNECT_URL = os.getenv("ANKI_CONNECT_URL", "http://localhost:8765")
+SESSION = requests.Session()
 
 
 class AnkiException(Exception):
@@ -13,12 +16,10 @@ class AnkiException(Exception):
 
 
 def parse_ac_response(response):
-    if len(response) != 2:
-        raise Exception("response has an unexpected number of fields")
-    if "error" not in response:
-        raise Exception("response is missing required error field")
-    if "result" not in response:
-        raise Exception("response is missing required result field")
+    if not isinstance(response, dict):
+        raise Exception(f"unexpected response type: {type(response)}")
+    if "error" not in response or "result" not in response:
+        raise Exception(f"response missing required fields: {response!r}")
     if response["error"] is not None:
         raise AnkiException(response["error"])
     return response["result"]
@@ -29,17 +30,33 @@ def make_ac_request(action, **params):
 
 
 def invoke_ac(action, **params):
-    requestJson = make_ac_request(action, **params)
+    request_json = make_ac_request(action, **params)
     try:
-        response = requests.post(ANKI_CONNECT_URL, json=requestJson).json()
+        r = SESSION.post(ANKI_CONNECT_URL, json=request_json, timeout=15)
+        r.raise_for_status()
+        response = r.json()
     except requests.exceptions.ConnectionError:
         print("[E] Failed to connect to AnkiConnect, make sure Anki is running")
-        exit(1)
+        sys.exit(1)
+    except requests.exceptions.Timeout:
+        print("[E] Timed out talking to AnkiConnect")
+        sys.exit(1)
+    except requests.exceptions.HTTPError as e:
+        print(f"[E] HTTP error from AnkiConnect: {e}")
+        sys.exit(1)
+    except ValueError:
+        print("[E] AnkiConnect returned non-JSON response")
+        sys.exit(1)
+    except requests.exceptions.RequestException as e:
+        print(f"[E] Request to AnkiConnect failed: {e}")
+        sys.exit(1)
 
     return parse_ac_response(response)
 
 
 def invoke_multi_ac(multi_actions):
+    if not multi_actions:
+        return []
     multi_results = invoke_ac("multi", actions=multi_actions)
     results = []
     for res in multi_results:
@@ -50,7 +67,7 @@ def invoke_multi_ac(multi_actions):
 def csv_to_ac_notes(csv_path, deck_name, note_type):
     notes = []
     index_to_field_name = {}
-    with open(csv_path) as csvfile:
+    with open(csv_path, newline="", encoding="utf-8") as csvfile:
         reader = csv.reader(csvfile)
         for i, row in enumerate(reader):
             fields = {}
@@ -169,7 +186,7 @@ def send_to_anki_connect(csv_path, deck_name, note_type):
             "[E] KeyError when syncing CSV."
             "Check CSV for unspecified columns or data outside of columns."
         )
-        exit(1)
+        sys.exit(1)
 
     # Create the deck, if it already exists this will not overwrite it
     invoke_ac("createDeck", deck=deck_name)
@@ -241,4 +258,5 @@ def main():
     invoke_ac("sync")
 
 
-main()
+if __name__ == "__main__":
+    main()
