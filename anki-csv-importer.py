@@ -232,30 +232,46 @@ def parse_arguments():
         "-p",
         "--path",
         help="the path of the local CSV file",
-        required=True,
     )
 
     parser.add_argument(
         "-d",
         "--deck",
         help="the name of the deck to import the sheet to",
-        required=True,
     )
-    parser.add_argument("-n", "--note", help="the note type to import", required=True)
+    parser.add_argument("-n", "--note", help="the note type to import")
+    sync_options = parser.add_mutually_exclusive_group()
+    sync_options.add_argument(
+        "--skip-ankiweb-sync", action="store_true", help="import locally without syncing to AnkiWeb"
+    )
+    sync_options.add_argument(
+        "--sync-only", action="store_true", help="sync to AnkiWeb without importing a CSV"
+    )
 
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.sync_only:
+        if any((args.path, args.deck, args.note)):
+            parser.error("--sync-only cannot be combined with --path, --deck, or --note")
+    elif not all((args.path, args.deck, args.note)):
+        parser.error("--path, --deck, and --note are required for importing")
+    return args
 
 
 def main():
     args = parse_arguments()
+    if args.sync_only:
+        print("[+] Syncing to AnkiWeb")
+        invoke_ac("sync")
+        return
 
     # Use an existing CSV file. We convert this to an absolute path because
     # CWD might change later
     csv_path = os.path.abspath(args.path)
 
     send_to_anki_connect(csv_path, args.deck, args.note)
-    print("[+] Syncing")
-    invoke_ac("sync")
+    if not args.skip_ankiweb_sync:
+        print("[+] Syncing to AnkiWeb")
+        invoke_ac("sync")
 
 
 if __name__ == "__main__":

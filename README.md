@@ -7,7 +7,7 @@ This fork began as a script by Gulshan Singh <gsingh2011@gmail.com> and contains
 ## Usage
 
 ```
-usage: anki-csv-importer.py [-h] -p PATH -d DECK -n NOTE
+usage: anki-csv-importer.py [-h] [-p PATH -d DECK -n NOTE] [--skip-ankiweb-sync | --sync-only]
 
 Import a local or remote CSV file into Anki
 
@@ -24,7 +24,12 @@ optional arguments:
 
 `./anki-csv-importer.py --path "<path>" --deck "<deck_name>" --note "<note_type>"`
 
-A sync is automatically run after the notes are added.
+A sync to AnkiWeb is automatically run after the notes are added. For a batch of
+CSV files, pass `--skip-ankiweb-sync` to each import, then run
+`./anki-csv-importer.py --sync-only` once after all imports succeed.
+
+The parent `runner.sh` follows this sequence: fetch and import all five sheets
+locally, then call `sync_to_ankiweb` as a separate final step.
 
 ### Integration with AnkiConnect
 
